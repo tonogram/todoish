@@ -11,8 +11,8 @@
 - [x] Create named todo lists
 - [x] Mark items as important
 - [x] Rename items
+- [x] Automatically save your lists to disk
 - [ ] Rename lists
-- [ ] Automatically save your lists to disk
 - [ ] Automatically sync across devices?
 - [ ] ...
 

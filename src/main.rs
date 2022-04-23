@@ -1,8 +1,10 @@
 #![windows_subsystem = "windows"]
 
 use ahash::AHashMap;
+use dirs::home_dir;
 use eframe::{egui, epaint, epi};
 use serde::{Deserialize, Serialize};
+use std::{fs, thread, time};
 
 fn no_shadow() -> epaint::Shadow {
     epaint::Shadow {
@@ -11,7 +13,7 @@ fn no_shadow() -> epaint::Shadow {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct Item {
     name: String,
     is_done: bool,
@@ -22,14 +24,24 @@ struct Todoish {
     new_list_name: String,
     new_item_name: String,
     lists: AHashMap<String, Vec<Item>>,
+    changed: bool,
+    last_save: time::Instant,
 }
 
 impl Default for Todoish {
     fn default() -> Self {
         Self {
-            lists: AHashMap::new(),
+            lists: {
+                let mut path = home_dir().expect("Failed to find home directory");
+                path.push(".todoish");
+                fs::read(path).map_or(AHashMap::new(), |bytes| {
+                    serde_json::from_slice(&bytes).expect("JSON was incorrectly formatted")
+                })
+            },
             new_list_name: String::new(),
             new_item_name: String::new(),
+            changed: false,
+            last_save: time::Instant::now(),
         }
     }
 }
@@ -79,6 +91,7 @@ impl epi::App for Todoish {
                         if ui.input().key_pressed(egui::Key::Enter) {
                             self.lists.insert(self.new_list_name.clone(), vec![]);
                             self.new_list_name = String::new();
+                            self.changed = true;
                         }
                     }
                 }
@@ -98,11 +111,15 @@ impl epi::App for Todoish {
                                             text = text.underline();
                                         }
                                         let resp = ui.checkbox(&mut i.is_done, text);
+                                        if resp.changed() {
+                                            self.changed = true;
+                                        }
                                         resp.context_menu(|ui| {
                                             if ui
                                                 .checkbox(&mut i.is_important, "Mark as important")
                                                 .changed()
                                             {
+                                                self.changed = true;
                                                 ui.close_menu();
                                             }
                                             if ui
@@ -112,10 +129,12 @@ impl epi::App for Todoish {
                                                 .inner
                                                 .map_or(false, |x| x.lost_focus())
                                             {
+                                                self.changed = true;
                                                 ui.close_menu();
                                             }
                                             if ui.button("Delete item").clicked() {
                                                 delete = Some(idx);
+                                                self.changed = true;
                                                 ui.close_menu();
                                             };
                                         });
@@ -141,6 +160,7 @@ impl epi::App for Todoish {
                                                     is_important: false,
                                                 });
                                                 self.new_item_name = String::new();
+                                                self.changed = true;
                                             }
                                         }
                                     }
@@ -149,6 +169,7 @@ impl epi::App for Todoish {
                             resp.context_menu(|ui| {
                                 if ui.button("Delete list").clicked() {
                                     delete = Some(k.clone());
+                                    self.changed = true;
                                     ui.close_menu();
                                 };
                             });
@@ -158,6 +179,20 @@ impl epi::App for Todoish {
                     self.lists.remove(&k);
                 }
             });
+        if self.changed {
+            let elapsed = self.last_save.elapsed().as_secs();
+            if elapsed >= 3 {
+                let lists_copy = self.lists.clone();
+                thread::spawn(move || {
+                    let json = serde_json::to_string(&lists_copy).expect("Failed to serialize");
+                    let mut path = home_dir().expect("Failed to find home directory");
+                    path.push(".todoish");
+                    fs::write(path, json).expect("Failed to write to disk");
+                });
+                self.last_save = time::Instant::now();
+                self.changed = false;
+            }
+        }
     }
 }
 
