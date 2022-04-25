@@ -180,6 +180,7 @@ impl epi::App for Todoish {
                 }
             });
         if self.changed {
+            ctx.request_repaint();
             let elapsed = self.last_save.elapsed().as_secs();
             if elapsed >= 3 {
                 let lists_copy = self.lists.clone();
