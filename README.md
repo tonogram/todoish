@@ -4,7 +4,7 @@
 
 ## Why
 - Freemium todo list apps are annoying.
-- Native and offline is better.
+- Native and offline-first is better.
 - Other options do too much.
 
 ## Features

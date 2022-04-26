@@ -32,7 +32,6 @@ checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
 dependencies = [
  "getrandom",
  "once_cell",
- "serde",
  "version_check",
 ]
 
@@ -1731,7 +1730,6 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 name = "todoish"
 version = "0.0.1"
 dependencies = [
- "ahash 0.7.6",
  "dirs",
  "eframe",
  "serde",
