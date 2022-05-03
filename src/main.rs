@@ -5,14 +5,6 @@ use eframe::{egui, epaint, epi};
 use serde::{Deserialize, Serialize};
 use std::{fs, thread, time};
 
-/// Disable the shadow effect that is drawn by default.
-fn no_shadow() -> epaint::Shadow {
-    epaint::Shadow {
-        extrusion: 0.0,
-        color: egui::Color32::TRANSPARENT,
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone)]
 /// An indivudual item on the todo list.
 struct Item {
@@ -71,13 +63,17 @@ struct Todoish {
 }
 
 impl Default for Todoish {
+    /// Attempt to open any existing todoish data. Defaults to an empty Vec<List>
+    /// if the file doesn't exist, and panics if deserialization fails.
     fn default() -> Self {
         Self {
             new_list_name: String::new(),
             lists: {
                 let mut path = home_dir().expect("Failed to find home directory");
                 path.push(".todoish");
+                // Default to an empty Vec.
                 fs::read(path).map_or(Vec::new(), |bytes| {
+                    // Panic if deserialization fails.
                     serde_json::from_slice(&bytes).expect("JSON was incorrectly formatted")
                 })
             },
@@ -100,7 +96,11 @@ impl epi::App for Todoish {
         // Round the corners of the window.
         let panel_frame = egui::containers::Frame::window(&ctx.style())
             .rounding(10.0)
-            .shadow(no_shadow());
+            // Disable the shadow effect.
+            .shadow(epaint::Shadow {
+                extrusion: 0.0,
+                color: egui::Color32::TRANSPARENT,
+            });
 
         egui::CentralPanel::default()
             .frame(panel_frame)
@@ -118,7 +118,9 @@ impl epi::App for Todoish {
                     }
 
                     let mut title_bar = ui.child_ui(rect, egui::Layout::left_to_right());
+                    // Show "todoish" on the left of the header.
                     title_bar.label("todoish");
+                    // Show whether or not the changes have been saved on the right of the header.
                     title_bar.with_layout(egui::Layout::right_to_left(), |ui| {
                         let text =
                             egui::RichText::new(if self.changed { "unsaved" } else { "saved" })

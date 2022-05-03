@@ -13,6 +13,9 @@
 - [x] Rename items
 - [x] Automatically save your lists to disk
 - [ ] Rename lists
+- [ ] Keep lists minimized after restarts
+- [ ] Show completion percent for each list
+- [ ] Notes for items/lists?
 - [ ] Automatically sync across devices?
 - [ ] ...
 
