@@ -120,7 +120,10 @@ impl epi::App for Todoish {
                     let mut title_bar = ui.child_ui(rect, egui::Layout::left_to_right());
                     title_bar.label("todoish");
                     title_bar.with_layout(egui::Layout::right_to_left(), |ui| {
-                        ui.hyperlink_to("", "https://github.com/tonogram/todoish")
+                        let text =
+                            egui::RichText::new(if self.changed { "unsaved" } else { "saved" })
+                                .weak();
+                        ui.label(text);
                     });
                 }
 
