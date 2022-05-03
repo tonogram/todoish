@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use dirs::home_dir;
-use eframe::{egui, epaint, epi};
+use eframe::{egui, epaint};
 use serde::{Deserialize, Serialize};
 use std::{fs, thread, time};
 
@@ -62,16 +62,22 @@ struct Todoish {
     last_save: time::Instant,
 }
 
-impl Default for Todoish {
-    /// Attempt to open any existing todoish data. Defaults to an empty Vec<List>
-    /// if the file doesn't exist, and panics if deserialization fails.
-    fn default() -> Self {
+impl Todoish {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Use the system setting to determine the theme. Default to dark when
+        // the theme can't be detected.
+        match cc.integration_info.prefer_dark_mode {
+            Some(true) | None => cc.egui_ctx.set_visuals(egui::Visuals::dark()),
+            Some(false) => cc.egui_ctx.set_visuals(egui::Visuals::light()),
+        }
+
+        // Attempt to open ~/.todoish and deserialize.
         Self {
             new_list_name: String::new(),
             lists: {
                 let mut path = home_dir().expect("Failed to find home directory");
                 path.push(".todoish");
-                // Default to an empty Vec.
+                // Default to an empty Vec if the file doesn't exist.
                 fs::read(path).map_or(Vec::new(), |bytes| {
                     // Panic if deserialization fails.
                     serde_json::from_slice(&bytes).expect("JSON was incorrectly formatted")
@@ -83,16 +89,14 @@ impl Default for Todoish {
     }
 }
 
-impl epi::App for Todoish {
-    fn name(&self) -> &str {
-        "todoish"
-    }
-
-    fn clear_color(&self) -> egui::Rgba {
+impl eframe::App for Todoish {
+    /// Make the clear color transparent.
+    fn clear_color(&self, _: &egui::Visuals) -> egui::Rgba {
         egui::Rgba::TRANSPARENT
     }
 
-    fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
+    /// Paint the frame!
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // Round the corners of the window.
         let panel_frame = egui::containers::Frame::window(&ctx.style())
             .rounding(10.0)
@@ -282,7 +286,6 @@ impl epi::App for Todoish {
 }
 
 fn main() {
-    let app = Todoish::default();
     let native_options = eframe::NativeOptions {
         // Hide the window header. We don't want to allow the user to accidentally
         // close the window so that their todo lists can always be visible. (a la Tape)
@@ -295,5 +298,9 @@ fn main() {
         min_window_size: Some(egui::vec2(500.0, 500.0)),
         ..Default::default()
     };
-    eframe::run_native(Box::new(app), native_options);
+    eframe::run_native(
+        "todoish",
+        native_options,
+        Box::new(|cc| Box::new(Todoish::new(cc))),
+    );
 }
