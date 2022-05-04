@@ -14,6 +14,12 @@ struct Item {
     is_done: bool,
     /// Whether or not this item is important. (Drawn with a brighter color.)
     is_important: bool,
+    #[serde(skip)]
+    /// Whether or not we should begin editing this item on this frame.
+    begin_editing: bool,
+    #[serde(skip)]
+    /// Whether or not the name of this item is currently being edited.
+    editing: bool,
 }
 
 impl Item {
@@ -23,6 +29,8 @@ impl Item {
             name,
             is_done: false,
             is_important: false,
+            begin_editing: false,
+            editing: false,
         }
     }
 }
@@ -171,27 +179,52 @@ impl eframe::App for Todoish {
                                 .show(ui, |ui| {
                                     let mut delete = None;
                                     // Loop over every item in this list.
-                                    for (idx, i) in list.items.iter_mut().enumerate() {
-                                        let mut text = egui::RichText::new(&i.name);
-                                        // Draw the text distinctly if this item is marked as important.
-                                        if i.is_important {
-                                            text = text.underline();
-                                        }
-                                        // Draw the checkbox for this item.
-                                        let resp = ui.checkbox(&mut i.is_done, text);
-                                        if resp.changed() {
-                                            self.changed = true;
-                                        }
+                                    for (idx, item) in list.items.iter_mut().enumerate() {
+                                        let resp = if item.editing {
+                                            // If the user wants to edit the name
+                                            // of this item, draw a text box instead
+                                            // of a checkbox.
+                                            let resp = ui.text_edit_singleline(&mut item.name);
+                                            // Steal focus immediately after the
+                                            // double-click event.
+                                            if item.begin_editing {
+                                                resp.request_focus();
+                                                item.begin_editing = false;
+                                            }
+                                            // Return to a checkbox when we're
+                                            // done editing the name.
+                                            if resp.lost_focus() {
+                                                self.changed = true;
+                                                item.editing = false;
+                                            }
+                                            resp
+                                        } else {
+                                            // If we're not editing the name, just
+                                            // draw a normal checkbox instead.
+                                            let mut text = egui::RichText::new(&item.name);
+                                            // Draw the text distinctly if this item is marked as important.
+                                            if item.is_important {
+                                                text = text.underline();
+                                            }
+                                            // Draw the checkbox for this item.
+                                            let resp = ui.checkbox(&mut item.is_done, text);
+                                            if resp.changed() {
+                                                self.changed = true;
+                                            }
+                                            if resp.double_clicked() {
+                                                item.editing = true;
+                                                item.begin_editing = true;
+                                            }
+                                            resp
+                                        };
                                         // Draw a context menu if this item is right-clicked.
                                         resp.context_menu(|ui| {
-                                            // A text box for retroactively editing the item name.
-                                            if ui.text_edit_singleline(&mut i.name).lost_focus() {
-                                                self.changed = true;
-                                                ui.close_menu();
-                                            }
                                             // A check box for marking the item as important.
                                             if ui
-                                                .checkbox(&mut i.is_important, "Mark as important")
+                                                .checkbox(
+                                                    &mut item.is_important,
+                                                    "Mark as important",
+                                                )
                                                 .changed()
                                             {
                                                 self.changed = true;
