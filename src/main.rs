@@ -45,6 +45,15 @@ struct List {
     #[serde(skip)]
     /// The contents of the text box used to create a new item. This is not serialized.
     new_item_name: String,
+    #[serde(skip)]
+    /// Whether or not we should begin editing this item on this frame.
+    begin_editing: bool,
+    #[serde(skip)]
+    /// Whether or not the name of this item is currently being edited.
+    editing: bool,
+    #[serde(skip)]
+    /// Whether or not this list should be toggled open/close on this frame.
+    should_toggle: bool,
 }
 
 impl List {
@@ -54,6 +63,9 @@ impl List {
             name,
             items: Vec::new(),
             new_item_name: String::new(),
+            begin_editing: false,
+            editing: false,
+            should_toggle: false,
         }
     }
 }
@@ -173,10 +185,64 @@ impl eframe::App for Todoish {
                         // Loop over every list.
                         let len = self.lists.len();
                         for (idx, list) in self.lists.iter_mut().enumerate() {
-                            // Draw the header of this list.
-                            let resp = egui::CollapsingHeader::new(&list.name)
-                                .default_open(true)
-                                .show(ui, |ui| {
+                            // Use the current index as the header's ID.
+                            // CAVEAT: This may cause weird behavior when deleting
+                            // lists, but I feel like it's probably negligible.
+                            let id = ui.make_persistent_id(idx);
+                            // Create the header and default it to open.
+                            let mut header =
+                                egui::collapsing_header::CollapsingState::load_with_default_open(
+                                    ui.ctx(),
+                                    id,
+                                    true,
+                                );
+                            // Toggle the open state of the header if it was clicked
+                            // outside of the arrow on the last frame.
+                            if list.should_toggle {
+                                header.set_open(!header.is_open());
+                                list.should_toggle = false;
+                            }
+                            let (resp, inner, _) = header
+                                // Draw the contents of this header.
+                                .show_header(ui, |ui| {
+                                    if list.editing {
+                                        // If the user wants to edit the name
+                                        // of this list, draw a text box instead
+                                        // of a label.
+                                        let resp = ui.text_edit_singleline(&mut list.name);
+                                        // Steal focus immediately after the
+                                        // double-click event.
+                                        if list.begin_editing {
+                                            resp.request_focus();
+                                            list.begin_editing = false;
+                                        }
+                                        // Return to a label when we're
+                                        // done editing the name.
+                                        if resp.lost_focus() {
+                                            self.changed = true;
+                                            list.editing = false;
+                                        }
+                                    } else {
+                                        // If we're not editing the name, just
+                                        // draw a clickable label instead.
+                                        let resp = ui.add(
+                                            egui::Label::new(&list.name)
+                                                .sense(egui::Sense::click()),
+                                        );
+                                        // Replace the label with a text box
+                                        // when it's double clicked.
+                                        if resp.double_clicked() {
+                                            list.editing = true;
+                                            list.begin_editing = true;
+                                        }
+                                        // Toggle the open state of the header
+                                        // after the widget is clicked.
+                                        if resp.clicked() {
+                                            list.should_toggle = true;
+                                        }
+                                    }
+                                })
+                                .body(|ui| {
                                     let mut delete = None;
                                     // Loop over every item in this list.
                                     for (idx, item) in list.items.iter_mut().enumerate() {
@@ -211,6 +277,8 @@ impl eframe::App for Todoish {
                                             if resp.changed() {
                                                 self.changed = true;
                                             }
+                                            // Replace the checkbox with a text box
+                                            // when it's double clicked.
                                             if resp.double_clicked() {
                                                 item.editing = true;
                                                 item.begin_editing = true;
@@ -264,18 +332,11 @@ impl eframe::App for Todoish {
                                             }
                                         }
                                     }
-                                })
-                                .header_response;
+                                });
                             // Draw a context menu if this list header is right-clicked.
-                            resp.context_menu(|ui| {
-                                // A text box for retroactively editing the list name.
-                                // TODO Context menus containing text boxes have
-                                // broken behavior when sourced from a
-                                // CollapsingHeader. Why? I have no idea.
-                                // if ui.text_edit_singleline(&mut list.name).lost_focus() {
-                                //     self.changed = true;
-                                //     ui.close_menu();
-                                // }
+                            // FIXME The context menu only responds to right-clicks
+                            // on the arrow, not the widget.
+                            resp.union(inner.response).context_menu(|ui| {
                                 // A button for deleting this list.
                                 if ui.button("Delete list").clicked() {
                                     delete = Some(idx);
@@ -328,6 +389,7 @@ fn main() {
         // And of course, since the window isn't decorated, make it transparent
         // So that we're not just stuck with the sharp corners.
         transparent: true,
+        initial_window_size: Some(egui::vec2(600.0, 600.0)),
         min_window_size: Some(egui::vec2(500.0, 500.0)),
         ..Default::default()
     };
